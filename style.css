@@ -1,7 +1,29 @@
-html, body {
-  margin: 0;
-  padding: 0;
+/* 判例横並び、折返し対応 */
+#legendDiv {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px 30px;
+  box-sizing: border-box;
+  background: #f0f0f0;
+  padding: 10px 10px;
 }
-canvas {
-  display: block;
+
+/* 議員選択ボックスを画面幅に合わせて伸縮 */
+select {
+  max-width: 100%;
+}
+
+/* スマホ・タブレットのレスポンシブ対応 */
+@media screen and (max-width: 600px) {
+  /* ボタンを縦並びにして幅広に */
+  button {
+	width: 90% !important;
+	margin-bottom: 8px;
+  }
+
+  /* 判例を縦積みに */
+  #legendDiv {
+	flex-direction: column !important;
+	gap: 10px !important;
+  }
 }
