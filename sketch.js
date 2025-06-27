@@ -171,7 +171,7 @@ function setup() {
   // ---- バブル生成 ----
   bubbles = [];
   for (let d of data) {
-	let baseR = map(d.amount, minAmount, maxAmount, 10, 30);
+	let baseR = map(d.amount, minAmount, maxAmount, 1, 30);
 	bubbles.push({
 	  ...d,
 	  baseR: baseR,
