@@ -31,12 +31,10 @@ function preload() {
   itemsTable = loadTable('items.csv', 'csv', 'header');
 }
 
-function setup() {
-  let canvasWidth = min(1200, windowWidth * 0.95);
-  let canvasHeight = canvasWidth * 0.75;
-
+// 画面要素の生成をまとめた関数
+function setupUI(w, h) {
   wrapper = createDiv('');
-  wrapper.style('width', canvasWidth + 'px');
+  wrapper.style('width', w + 'px');
   wrapper.style('margin', '20px auto 0 auto');
   wrapper.style('position', 'relative');
 
@@ -50,34 +48,6 @@ function setup() {
   legendDiv.style('box-sizing', 'border-box');
   legendDiv.parent(wrapper);
 
-  items = [];
-  for (let r = 0; r < itemsTable.getRowCount(); r++) {
-	items.push(itemsTable.getString(r, 0));
-  }
-  uniqueItems = [...new Set(items)];
-
-  uniqueItems.forEach((item, i) => {
-	colors[item] = color(
-	  floor(150 + 70 * sin(i * 0.5)),
-	  floor(120 + 80 * cos(i * 0.5)),
-	  floor(200 - 70 * sin(i * 0.5))
-	);
-
-	let c = colors[item];
-	let colStr = c.toString('#rrggbb');
-	let itemSpan = createSpan('');
-	itemSpan.html(`
-	  <svg width="20" height="20" style="vertical-align:middle; margin-right:5px;">
-		<circle cx="10" cy="10" r="8" fill="${colStr}" stroke="#555" stroke-width="1"/>
-	  </svg>
-	  <span style="font-size:16px; vertical-align: middle;">${item}</span>
-	`);
-	itemSpan.style('display', 'inline-flex');
-	itemSpan.style('align-items', 'center');
-	itemSpan.parent(legendDiv);
-  });
-
-  // ---- ボタンDIV追加・legendDivの下 ----
   buttonDiv = createDiv('');
   buttonDiv.style('width', '100%');
   buttonDiv.style('display', 'flex');
@@ -86,15 +56,13 @@ function setup() {
   buttonDiv.style('margin', '14px 0 12px 0');
   buttonDiv.parent(wrapper);
 
-  // ---- キャンバス本体 ----
-  let canvas = createCanvas(canvasWidth, canvasHeight);
+  const canvas = createCanvas(w, h);
   canvas.parent(wrapper);
   canvas.style('display', 'block');
   canvas.style('margin', 'auto');
   canvas.style('border', '2px solid #333');
   textAlign(CENTER, CENTER);
 
-  // ---- スライダーDIV・キャンバスの下 ----
   sliderDiv = createDiv('');
   sliderDiv.style('width', '100%');
   sliderDiv.style('text-align', 'center');
@@ -105,48 +73,86 @@ function setup() {
   bubbleSlider.style('width', '240px');
   bubbleSlider.parent(sliderDiv);
 
-  // ---- ボタン生成・buttonDivに追加 ----
+  memberDiv = createDiv('');
+  memberDiv.style('width', w + 'px');
+  memberDiv.style('text-align', 'center');
+  memberDiv.style('margin', '20px auto 40px');
+  memberDiv.parent(document.body);
+}
+
+// CSVデータを読み込んで配列に展開
+function loadData() {
+  items = [];
+  for (let r = 0; r < itemsTable.getRowCount(); r++) {
+        items.push(itemsTable.getString(r, 0));
+  }
+  uniqueItems = [...new Set(items)];
+
+  uniqueNames = [];
+  data = [];
+  for (let r = 0; r < table.getRowCount(); r++) {
+        const name = table.getString(r, 'name');
+        const item = table.getString(r, 'item');
+        const amount = int(table.getString(r, 'amount'));
+        data.push({ name, item, amount });
+        if (amount < minAmount) minAmount = amount;
+        if (amount > maxAmount) maxAmount = amount;
+        if (!uniqueNames.includes(name)) uniqueNames.push(name);
+  }
+}
+
+// 凡例部分を生成
+function createLegend() {
+  uniqueItems.forEach((item, i) => {
+        colors[item] = color(
+          floor(150 + 70 * sin(i * 0.5)),
+          floor(120 + 80 * cos(i * 0.5)),
+          floor(200 - 70 * sin(i * 0.5))
+        );
+
+        const c = colors[item];
+        const colStr = c.toString('#rrggbb');
+        const itemSpan = createSpan('');
+        itemSpan.html(`
+          <svg width="20" height="20" style="vertical-align:middle; margin-right:5px;">
+                <circle cx="10" cy="10" r="8" fill="${colStr}" stroke="#555" stroke-width="1"/>
+          </svg>
+          <span style="font-size:16px; vertical-align: middle;">${item}</span>
+        `);
+        itemSpan.style('display', 'inline-flex');
+        itemSpan.style('align-items', 'center');
+        itemSpan.parent(legendDiv);
+  });
+}
+
+// 表示モード切り替えボタンを作成
+function setupButtons() {
   buttons = [];
   buttons.push(new Btn('議員ごと', () => setMode('name')));
   buttons.push(new Btn('支出項目ごと', () => setMode('item')));
   buttons.push(new Btn('全部まとめて', () => setMode('all')));
 
   for (let btn of buttons) {
-	let b = createButton(btn.label);
-	b.style('font-size', '17px');
-	b.style('padding', '7px 22px');
-	b.style('margin', '0 3px');
-	b.style('border-radius', '8px');
-	b.style('border', '1.5px solid #666');
-	b.style('background', '#fff');
-	b.mousePressed(btn.cb);
-	b.parent(buttonDiv);
-	btn._dom = b; // 参照保持
+        const b = createButton(btn.label);
+        b.style('font-size', '17px');
+        b.style('padding', '7px 22px');
+        b.style('margin', '0 3px');
+        b.style('border-radius', '8px');
+        b.style('border', '1.5px solid #666');
+        b.style('background', '#fff');
+        b.mousePressed(btn.cb);
+        b.parent(buttonDiv);
+        btn._dom = b; // DOM要素参照を保持
   }
+}
 
-  // ---- 議員リスト表示（これはcanvas外のまま維持） ----
-  memberDiv = createDiv('');
-  memberDiv.style('width', canvasWidth + 'px');
-  memberDiv.style('text-align', 'center');
-  memberDiv.style('margin', '20px auto 40px');
-  memberDiv.parent(document.body);
-
+// 議員選択用のUIを作成
+function setupMemberList() {
   memberSelect = createSelect();
   memberSelect.elt.multiple = true;
   memberSelect.elt.size = 8;
   memberSelect.style('width', '100%');
   memberSelect.option('すべての議員');
-  uniqueNames = [];
-  data = [];
-  for (let r = 0; r < table.getRowCount(); r++) {
-	let name = table.getString(r, 'name');
-	let item = table.getString(r, 'item');
-	let amount = int(table.getString(r, 'amount'));
-	data.push({ name, item, amount });
-	if (amount < minAmount) minAmount = amount;
-	if (amount > maxAmount) maxAmount = amount;
-	if (!uniqueNames.includes(name)) uniqueNames.push(name);
-  }
   for (let n of uniqueNames) memberSelect.option(n);
   memberSelect.changed(updateSelectedMembers);
   memberSelect.parent(memberDiv);
@@ -157,34 +163,48 @@ function setup() {
   toggleMemberListBtn.style('margin-left', '12px');
   toggleMemberListBtn.parent(memberDiv);
   toggleMemberListBtn.mousePressed(() => {
-	memberListVisible = !memberListVisible;
-	if (memberListVisible) {
-	  memberSelect.show();
-	  toggleMemberListBtn.html('議員リスト非表示');
-	} else {
-	  memberSelect.hide();
-	  toggleMemberListBtn.html('議員リスト表示');
-	}
+        memberListVisible = !memberListVisible;
+        if (memberListVisible) {
+          memberSelect.show();
+          toggleMemberListBtn.html('議員リスト非表示');
+        } else {
+          memberSelect.hide();
+          toggleMemberListBtn.html('議員リスト表示');
+        }
   });
   toggleMemberListBtn.hide();
+}
 
-  // ---- バブル生成 ----
+// バブルデータを作成
+function createBubbles() {
   bubbles = [];
   for (let d of data) {
-	let baseR = map(d.amount, minAmount, maxAmount, 1, 30);
-	bubbles.push({
-	  ...d,
-	  baseR: baseR,
-	  r: baseR,
-	  x: random(width),
-	  y: random(height),
-	  targetX: width / 2,
-	  targetY: height / 2,
-	  vx: 0,
-	  vy: 0,
-	  stopped: false
-	});
+        const baseR = map(d.amount, minAmount, maxAmount, 1, 30);
+        bubbles.push({
+          ...d,
+          baseR: baseR,
+          r: baseR,
+          x: random(width),
+          y: random(height),
+          targetX: width / 2,
+          targetY: height / 2,
+          vx: 0,
+          vy: 0,
+          stopped: false
+        });
   }
+}
+
+function setup() {
+  const canvasWidth = min(1200, windowWidth * 0.95);
+  const canvasHeight = canvasWidth * 0.75;
+
+  setupUI(canvasWidth, canvasHeight);
+  loadData();
+  createLegend();
+  setupButtons();
+  setupMemberList();
+  createBubbles();
 
   setMode('all');
 }
