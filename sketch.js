@@ -8,7 +8,6 @@ let colors = {};
 let mode = "all";
 let centerMap = {};
 let itemCenters = {};
-let bubbleSlider;
 
 let memberSelect;
 let selectedMembers = [];
@@ -25,7 +24,7 @@ let maxAmount = -Infinity;
 
 let buttons = [];
 
-let wrapper, legendDiv, memberDiv;
+let wrapper, legendDiv, memberDiv, buttonDiv, sliderDiv;
 
 function preload() {
   table = loadTable('data.csv', 'csv', 'header');
@@ -78,52 +77,54 @@ function setup() {
 	itemSpan.parent(legendDiv);
   });
 
+  // ---- ボタンDIV追加・legendDivの下 ----
+  buttonDiv = createDiv('');
+  buttonDiv.style('width', '100%');
+  buttonDiv.style('display', 'flex');
+  buttonDiv.style('justify-content', 'center');
+  buttonDiv.style('gap', '24px');
+  buttonDiv.style('margin', '14px 0 12px 0');
+  buttonDiv.parent(wrapper);
+
+  // ---- キャンバス本体 ----
   let canvas = createCanvas(canvasWidth, canvasHeight);
   canvas.parent(wrapper);
   canvas.style('display', 'block');
   canvas.style('margin', 'auto');
   canvas.style('border', '2px solid #333');
-
   textAlign(CENTER, CENTER);
 
-  data = [];
-  for (let r = 0; r < table.getRowCount(); r++) {
-	let name = table.getString(r, 'name');
-	let item = table.getString(r, 'item');
-	let amount = int(table.getString(r, 'amount'));
-	data.push({ name, item, amount });
-
-	if (amount < minAmount) minAmount = amount;
-	if (amount > maxAmount) maxAmount = amount;
-  }
-
-  uniqueNames = [...new Set(data.map(d => d.name))];
-
-  bubbles = [];
-  for (let d of data) {
-	let baseR = map(d.amount, minAmount, maxAmount, 10, 30);
-	bubbles.push({
-	  ...d,
-	  baseR: baseR,
-	  r: baseR,
-	  x: random(width),
-	  y: random(height),
-	  targetX: width / 2,
-	  targetY: height / 2,
-	  vx: 0,
-	  vy: 0,
-	  stopped: false
-	});
-  }
-
-  buttons.push(new Btn(canvasWidth/2 - 240, 10, 120, 36, '議員ごと', () => setMode('name')));
-  buttons.push(new Btn(canvasWidth/2 - 60, 10, 120, 36, '支出項目ごと', () => setMode('item')));
-  buttons.push(new Btn(canvasWidth/2 + 120, 10, 120, 36, '全部まとめて', () => setMode('all')));
+  // ---- スライダーDIV・キャンバスの下 ----
+  sliderDiv = createDiv('');
+  sliderDiv.style('width', '100%');
+  sliderDiv.style('text-align', 'center');
+  sliderDiv.style('margin', '16px 0 0 0');
+  sliderDiv.parent(wrapper);
 
   bubbleSlider = createSlider(0.2, 2, 0.2, 0.01);
-  bubbleSlider.position((windowWidth - canvasWidth) / 2 + canvasWidth / 2 - 100, canvasHeight - 50);
-  bubbleSlider.style('width', '200px');
+  bubbleSlider.style('width', '240px');
+  bubbleSlider.parent(sliderDiv);
 
+  // ---- ボタン生成・buttonDivに追加 ----
+  buttons = [];
+  buttons.push(new Btn('議員ごと', () => setMode('name')));
+  buttons.push(new Btn('支出項目ごと', () => setMode('item')));
+  buttons.push(new Btn('全部まとめて', () => setMode('all')));
+
+  for (let btn of buttons) {
+	let b = createButton(btn.label);
+	b.style('font-size', '17px');
+	b.style('padding', '7px 22px');
+	b.style('margin', '0 3px');
+	b.style('border-radius', '8px');
+	b.style('border', '1.5px solid #666');
+	b.style('background', '#fff');
+	b.mousePressed(btn.cb);
+	b.parent(buttonDiv);
+	btn._dom = b; // 参照保持
+  }
+
+  // ---- 議員リスト表示（これはcanvas外のまま維持） ----
   memberDiv = createDiv('');
   memberDiv.style('width', canvasWidth + 'px');
   memberDiv.style('text-align', 'center');
@@ -135,6 +136,17 @@ function setup() {
   memberSelect.elt.size = 8;
   memberSelect.style('width', '100%');
   memberSelect.option('すべての議員');
+  uniqueNames = [];
+  data = [];
+  for (let r = 0; r < table.getRowCount(); r++) {
+	let name = table.getString(r, 'name');
+	let item = table.getString(r, 'item');
+	let amount = int(table.getString(r, 'amount'));
+	data.push({ name, item, amount });
+	if (amount < minAmount) minAmount = amount;
+	if (amount > maxAmount) maxAmount = amount;
+	if (!uniqueNames.includes(name)) uniqueNames.push(name);
+  }
   for (let n of uniqueNames) memberSelect.option(n);
   memberSelect.changed(updateSelectedMembers);
   memberSelect.parent(memberDiv);
@@ -156,6 +168,24 @@ function setup() {
   });
   toggleMemberListBtn.hide();
 
+  // ---- バブル生成 ----
+  bubbles = [];
+  for (let d of data) {
+	let baseR = map(d.amount, minAmount, maxAmount, 10, 30);
+	bubbles.push({
+	  ...d,
+	  baseR: baseR,
+	  r: baseR,
+	  x: random(width),
+	  y: random(height),
+	  targetX: width / 2,
+	  targetY: height / 2,
+	  vx: 0,
+	  vy: 0,
+	  stopped: false
+	});
+  }
+
   setMode('all');
 }
 
@@ -164,21 +194,12 @@ function windowResized() {
   let canvasHeight = canvasWidth * 0.75;
   resizeCanvas(canvasWidth, canvasHeight);
 
-  buttons[0].x = canvasWidth/2 - 240;
-  buttons[1].x = canvasWidth/2 - 60;
-  buttons[2].x = canvasWidth/2 + 120;
-
-  bubbleSlider.position((windowWidth - canvasWidth) / 2 + canvasWidth / 2 - 100, canvasHeight - 50);
-
+  wrapper.style('width', canvasWidth + 'px');
   memberDiv.style('width', canvasWidth + 'px');
-
-  resetBubblePositions();
 }
 
 function draw() {
   background(240);
-
-  for (let btn of buttons) btn.draw();
 
   let bubbleScale = bubbleSlider.value();
 
@@ -378,6 +399,18 @@ function draw() {
   }
 }
 
+// ボタンのクラスは描画しない
+class Btn {
+  constructor(label, cb) {
+	this.label = label;
+	this.cb = cb;
+	this._dom = null;
+  }
+}
+
+// 旧ボタン描画イベントは不要
+function mousePressed() {}
+
 function setMode(m) {
   if (m == "name") {
 	if (mode == "name" && isMemberListOpen) {
@@ -500,29 +533,4 @@ function horizontalCenters(items, margin = 100) {
 	map[item] = {x, y};
   });
   return map;
-}
-
-class Btn {
-  constructor(x, y, w, h, label, cb) {
-	this.x = x; this.y = y; this.w = w; this.h = h;
-	this.label = label; this.cb = cb;
-  }
-  draw() {
-	fill(255);
-	stroke(100); strokeWeight(1);
-	rect(this.x, this.y, this.w, this.h, 8);
-	fill(40);
-	noStroke();
-	textSize(16);
-	text(this.label, this.x + this.w/2, this.y + this.h/2);
-  }
-  pressed(mx, my) {
-	return mx > this.x && mx < this.x + this.w && my > this.y && my < this.y + this.h;
-  }
-}
-
-function mousePressed() {
-  for (let btn of buttons) {
-	if (btn.pressed(mouseX, mouseY)) btn.cb();
-  }
 }
