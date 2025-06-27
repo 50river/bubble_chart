@@ -1,52 +1,47 @@
-// 項目名の配列（items.csvから読み込み）
 let items = [];
-// 元データ配列（data.csvから読み込み）
 let data = [];
-// 表示用バブル配列（各データに描画情報追加）
 let bubbles = [];
-// 重複を除いた支出項目と議員名の配列
 let uniqueItems = [];
 let uniqueNames = [];
-// 支出項目ごとの色マップ（item名 -> p5.Color）
 let colors = {};
 
-let mode = "all";              // 表示モード ("all", "name", "item")
-let centerMap = {};            // 議員ごとのクラスタ中心座標マップ
-let itemCenters = {};          // 項目ごとのクラスタ中心座標マップ
-let bubbleSlider;              // バブルサイズ調整用スライダーUI
+let mode = "all";
+let centerMap = {};
+let itemCenters = {};
+let bubbleSlider;
 
-// 議員選択UI関連
 let memberSelect;
 let selectedMembers = [];
+
 let isMemberListOpen = false;
 let toggleMemberListBtn;
 let memberListVisible = false;
 
-// CSVデータ読み込み用
 let table;
 let itemsTable;
 
-// 読み込んだ金額の最小・最大（バブルサイズのスケール用）
 let minAmount = Infinity;
 let maxAmount = -Infinity;
 
-let buttons = [];  // キャンバス内ボタン管理用配列
+let buttons = [];
 
-// p5.js preloadでCSVを先に読み込み
+let wrapper, legendDiv, memberDiv;
+
 function preload() {
   table = loadTable('data.csv', 'csv', 'header');
   itemsTable = loadTable('items.csv', 'csv', 'header');
 }
 
 function setup() {
-  // キャンバスと判例divを囲む親div（幅1200pxで中央寄せ）
-  let wrapper = createDiv('');
-  wrapper.style('width', '1200px');
+  let canvasWidth = min(1200, windowWidth * 0.95);
+  let canvasHeight = canvasWidth * 0.75;
+
+  wrapper = createDiv('');
+  wrapper.style('width', canvasWidth + 'px');
   wrapper.style('margin', '20px auto 0 auto');
   wrapper.style('position', 'relative');
 
-  // 判例表示用div（キャンバスの上、横並びで折返し対応）
-  let legendDiv = createDiv('');
+  legendDiv = createDiv('');
   legendDiv.style('width', '100%');
   legendDiv.style('padding', '10px 10px');
   legendDiv.style('background', '#f0f0f0');
@@ -56,7 +51,6 @@ function setup() {
   legendDiv.style('box-sizing', 'border-box');
   legendDiv.parent(wrapper);
 
-  // items.csvから項目を読み込み、色を生成＆判例divに表示
   items = [];
   for (let r = 0; r < itemsTable.getRowCount(); r++) {
 	items.push(itemsTable.getString(r, 0));
@@ -64,7 +58,6 @@ function setup() {
   uniqueItems = [...new Set(items)];
 
   uniqueItems.forEach((item, i) => {
-	// 色生成（sin, cosで適当にバリエーション作成）
 	colors[item] = color(
 	  floor(150 + 70 * sin(i * 0.5)),
 	  floor(120 + 80 * cos(i * 0.5)),
@@ -73,7 +66,6 @@ function setup() {
 
 	let c = colors[item];
 	let colStr = c.toString('#rrggbb');
-	// SVG＋テキストで色丸アイコンと項目名をセットで表示
 	let itemSpan = createSpan('');
 	itemSpan.html(`
 	  <svg width="20" height="20" style="vertical-align:middle; margin-right:5px;">
@@ -86,8 +78,7 @@ function setup() {
 	itemSpan.parent(legendDiv);
   });
 
-  // キャンバス生成し、wrapper内に設置（中央揃え、枠線あり）
-  let canvas = createCanvas(1200, 900);
+  let canvas = createCanvas(canvasWidth, canvasHeight);
   canvas.parent(wrapper);
   canvas.style('display', 'block');
   canvas.style('margin', 'auto');
@@ -95,7 +86,6 @@ function setup() {
 
   textAlign(CENTER, CENTER);
 
-  // data.csvから議員名・項目・金額を読み込み
   data = [];
   for (let r = 0; r < table.getRowCount(); r++) {
 	let name = table.getString(r, 'name');
@@ -103,15 +93,12 @@ function setup() {
 	let amount = int(table.getString(r, 'amount'));
 	data.push({ name, item, amount });
 
-	// 読み込み時に最小・最大金額を検出
 	if (amount < minAmount) minAmount = amount;
 	if (amount > maxAmount) maxAmount = amount;
   }
 
-  // 議員名のユニーク配列作成
   uniqueNames = [...new Set(data.map(d => d.name))];
 
-  // バブルの初期化。金額の最小最大で半径をスケール
   bubbles = [];
   for (let d of data) {
 	let baseR = map(d.amount, minAmount, maxAmount, 10, 30);
@@ -119,45 +106,40 @@ function setup() {
 	  ...d,
 	  baseR: baseR,
 	  r: baseR,
-	  x: random(width),    // 初期位置はランダム
+	  x: random(width),
 	  y: random(height),
-	  targetX: width / 2,  // 目標位置（移動先）
+	  targetX: width / 2,
 	  targetY: height / 2,
-	  vx: 0,               // 速度x
-	  vy: 0,               // 速度y
-	  stopped: false       // 移動停止フラグ
+	  vx: 0,
+	  vy: 0,
+	  stopped: false
 	});
   }
 
-  // 並べ替えボタン群（キャンバス内上部）
-  buttons.push(new Btn(300, 10, 120, 36, '議員ごと', () => setMode('name')));
-  buttons.push(new Btn(480, 10, 120, 36, '支出項目ごと', () => setMode('item')));
-  buttons.push(new Btn(660, 10, 120, 36, '全部まとめて', () => setMode('all')));
+  buttons.push(new Btn(canvasWidth/2 - 240, 10, 120, 36, '議員ごと', () => setMode('name')));
+  buttons.push(new Btn(canvasWidth/2 - 60, 10, 120, 36, '支出項目ごと', () => setMode('item')));
+  buttons.push(new Btn(canvasWidth/2 + 120, 10, 120, 36, '全部まとめて', () => setMode('all')));
 
-  // バブルサイズスライダー（キャンバス内下部中央に配置）
   bubbleSlider = createSlider(0.2, 2, 0.2, 0.01);
-  bubbleSlider.position((windowWidth - width) / 2 + width / 2 - 100, height - 50);
+  bubbleSlider.position((windowWidth - canvasWidth) / 2 + canvasWidth / 2 - 100, canvasHeight - 50);
   bubbleSlider.style('width', '200px');
 
-  // 議員選択UIはキャンバス外にdivとして作成し、縦並びで自然に配置
-  let memberDiv = createDiv('');
-  memberDiv.style('width', '1200px');
+  memberDiv = createDiv('');
+  memberDiv.style('width', canvasWidth + 'px');
   memberDiv.style('text-align', 'center');
   memberDiv.style('margin', '20px auto 40px');
   memberDiv.parent(document.body);
 
-  // 議員選択用のselectボックス
   memberSelect = createSelect();
   memberSelect.elt.multiple = true;
   memberSelect.elt.size = 8;
-  memberSelect.style('width', '250px');
+  memberSelect.style('width', '100%');
   memberSelect.option('すべての議員');
   for (let n of uniqueNames) memberSelect.option(n);
   memberSelect.changed(updateSelectedMembers);
   memberSelect.parent(memberDiv);
   memberSelect.hide();
 
-  // 議員リスト表示／非表示切替ボタン
   toggleMemberListBtn = createButton('議員リスト表示');
   toggleMemberListBtn.style('font-size', '14px');
   toggleMemberListBtn.style('margin-left', '12px');
@@ -174,19 +156,32 @@ function setup() {
   });
   toggleMemberListBtn.hide();
 
-  // 初期モードを「全部まとめて」に設定
   setMode('all');
+}
+
+function windowResized() {
+  let canvasWidth = min(1200, windowWidth * 0.95);
+  let canvasHeight = canvasWidth * 0.75;
+  resizeCanvas(canvasWidth, canvasHeight);
+
+  buttons[0].x = canvasWidth/2 - 240;
+  buttons[1].x = canvasWidth/2 - 60;
+  buttons[2].x = canvasWidth/2 + 120;
+
+  bubbleSlider.position((windowWidth - canvasWidth) / 2 + canvasWidth / 2 - 100, canvasHeight - 50);
+
+  memberDiv.style('width', canvasWidth + 'px');
+
+  resetBubblePositions();
 }
 
 function draw() {
   background(240);
 
-  // キャンバス内の上部にあるモード切替ボタンを描画
   for (let btn of buttons) btn.draw();
 
   let bubbleScale = bubbleSlider.value();
 
-  // 表示対象のバブルと議員名のリストを決定（議員別モードかつ選択があれば絞る）
   let showBubbles = bubbles;
   let showNames = uniqueNames;
   if (mode === "name" && selectedMembers.length > 0) {
@@ -194,10 +189,8 @@ function draw() {
 	showNames = selectedMembers;
   }
 
-  // バブルの半径をスライダー値でスケール
   for (let b of showBubbles) b.r = b.baseR * bubbleScale;
 
-  // 表示モードごとにバブルの目標座標をセット
   if (mode == "all") {
 	let cx = width / 2, cy = height / 2;
 	for (let b of showBubbles) {
@@ -229,7 +222,6 @@ function draw() {
 	}
   }
 
-  // クラスタ内のバブル同士の重なりを避ける反発処理
   let clusterKey = mode === "name" ? "name" : mode === "item" ? "item" : null;
   let clusterGroups = {};
   if (clusterKey) {
@@ -263,7 +255,6 @@ function draw() {
 	}
   }
 
-  // 全体の重なりを繰り返し解消する処理（20回繰り返し）
   for (let repeat = 0; repeat < 20; repeat++) {
 	for (let i = 0; i < showBubbles.length; i++) {
 	  let b1 = showBubbles[i];
@@ -289,13 +280,11 @@ function draw() {
 	}
   }
 
-  // バブルの移動処理と停止判定
   for (let b of showBubbles) {
 	if (!b.stopped) {
 	  let tx = b.targetX, ty = b.targetY;
 	  let dist2 = (tx - b.x) * (tx - b.x) + (ty - b.y) * (ty - b.y);
 
-	  // 他のバブルと重なっていないかチェック
 	  let hasOverlap = false;
 	  let overlapMargin = (mode === 'all') ? 5 : 0.2;
 	  for (let other of showBubbles) {
@@ -307,11 +296,9 @@ function draw() {
 		}
 	  }
 
-	  // 停止条件の距離・速度閾値をモード別に設定
 	  const STOP_DIST = (mode === 'all') ? 1.0 : 0.3;
 	  const STOP_VEL = (mode === 'all') ? 0.05 : 0.01;
 
-	  // 条件を満たせば停止。そうでなければイージングで目標に移動
 	  if (
 		dist2 < STOP_DIST * STOP_DIST &&
 		abs(b.vx) < STOP_VEL &&
@@ -332,14 +319,12 @@ function draw() {
 		b.y += b.vy;
 	  }
 	}
-	// バブル描画（色と枠線つき）
 	fill(colors[b.item]);
 	stroke(80);
 	strokeWeight(1);
 	ellipse(b.x, b.y, b.r * 2);
   }
 
-  // クラスタ名ラベル（クラスタ中心に白縁つきで描画）
   if (mode == "name") {
 	textAlign(CENTER, CENTER);
 	for (let k of showNames) {
@@ -367,7 +352,6 @@ function draw() {
 	strokeWeight(1);
   }
 
-  // マウスオーバー時のツールチップ表示（議員名・項目・金額）
   let hovered = null;
   for (let b of showBubbles) {
 	if (dist(mouseX, mouseY, b.x, b.y) < b.r) hovered = b;
@@ -394,8 +378,6 @@ function draw() {
   }
 }
 
-// モード切り替え処理（all/name/item）
-// 議員リスト表示の切替もここで制御
 function setMode(m) {
   if (m == "name") {
 	if (mode == "name" && isMemberListOpen) {
@@ -431,7 +413,6 @@ function setMode(m) {
   for (let b of bubbles) b.stopped = false;
 }
 
-// 議員選択変更時の処理（複数選択対応）
 function updateSelectedMembers() {
   selectedMembers = [];
   let opts = memberSelect.elt.selectedOptions;
@@ -451,7 +432,6 @@ function updateSelectedMembers() {
   resetBubblePositions();
 }
 
-// 選択議員数に応じたグリッド（碁盤目）中心座標計算
 function gridCentersForSelection(names, marginX=70, marginY=150) {
   let n = names.length;
   if (n == 1) {
@@ -482,7 +462,6 @@ function gridCentersForSelection(names, marginX=70, marginY=150) {
   }
 }
 
-// バブル初期位置リセット
 function resetBubblePositions() {
   let showNames = (mode === "name" && selectedMembers.length > 0) ? selectedMembers : uniqueNames;
   let centers = gridCentersForSelection(showNames, 60, 60);
@@ -497,7 +476,6 @@ function resetBubblePositions() {
 	if (mode === "name" && showNames.includes(b.name)) {
 	  let c = centers[b.name];
 	  let rlimX = cellW/2-40, rlimY = cellH/2-40;
-	  // 中心周辺にランダム分散
 	  b.x = c.x + random(-rlimX, rlimX);
 	  b.y = c.y + random(-rlimY, rlimY);
 	  b.vx = 0;
@@ -512,7 +490,6 @@ function resetBubblePositions() {
   }
 }
 
-// 横に均等に項目クラスタの中心座標を返す
 function horizontalCenters(items, margin = 100) {
   let n = items.length;
   let interval = (width - 2 * margin) / (n - 1);
@@ -525,7 +502,6 @@ function horizontalCenters(items, margin = 100) {
   return map;
 }
 
-// ボタン用クラス（描画と押下判定）
 class Btn {
   constructor(x, y, w, h, label, cb) {
 	this.x = x; this.y = y; this.w = w; this.h = h;
